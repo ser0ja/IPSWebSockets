@@ -1,0 +1,13 @@
+{
+    "id": "{1315C274-FBFA-43FD-A6B7-491697089EF7}",
+    "author": "Michael Tr\u00f6ger",
+    "name": "Websocket Library",
+    "url": "https://github.com/Nall-chan/IPSWebsocket/",
+    "version": "0.1",
+    "build": 100,
+    "date": 1485256481,
+    "title": "Websockets für IPS.",
+    "description": "",
+    "tags": ["Websocket", "HTTP", "Client", "Server"],
+    "req_ips_version": "4.1"
+}

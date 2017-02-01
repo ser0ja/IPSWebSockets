@@ -1,0 +1,23 @@
+{
+    "translations": {
+        "de": {
+            "Open": "Öffnen",
+            "Host": "Adresse",
+            "JSON-RPC TCP-Port": "JSON-RPC TCP-Port",
+            "Kodi-Webserver is needed for image download.": "Kodi-Webserver wird für Bilder download benötigt.",
+            "Webserver-Port": "Webserver-Port",
+            "Optional HTTP Basic-Authentication:": "Optionale HTTP Basis-Authentifizierung:",
+            "Active": "Aktiv",
+            "Username": "Benutzername",
+            "Password": "Passwort",
+            "Advanced power watchdog": "Erweiterte Power-On Überwachung",
+            "Enabled": "Aktiv",
+            "seconds": "Sekunden",
+            "Kodi found.": "Kodi erreichbar.",
+            "Interface closed.": "Interface geschlossen.",
+            "Host or port is empty.": "Adresse und Port darf nicht leer sein.",
+            "Could not connect RPC-Server.": "Keine Verbindung zum RPC-Server.",
+            "Could not connect to webserver.": "Keine Verbindung zum Webserver"
+        }
+    }
+}
