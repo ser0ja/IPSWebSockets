@@ -3,15 +3,15 @@
 require_once(__DIR__ . "/../WebsocketClass.php");  // diverse Klassen
 
 /*
- * @addtogroup kodi
+ * @addtogroup websocket
  * @{
  *
  * @package       Websocket
  * @file          module.php
  * @author        Michael Tröger <micha@nall-chan.net>
- * @copyright     2016 Michael Tröger
+ * @copyright     2017 Michael Tröger
  * @license       https://creativecommons.org/licenses/by-nc-sa/4.0/ CC BY-NC-SA 4.0
- * @version       1.0
+ * @version       0.2
  *
  */
 
@@ -21,9 +21,9 @@ require_once(__DIR__ . "/../WebsocketClass.php");  // diverse Klassen
  * 
  * @package       Websocket
  * @author        Michael Tröger <micha@nall-chan.net>
- * @copyright     2016 Michael Tröger
+ * @copyright     2017 Michael Tröger
  * @license       https://creativecommons.org/licenses/by-nc-sa/4.0/ CC BY-NC-SA 4.0
- * @version       1.0 
+ * @version       0.2
  * @example <b>Ohne</b>
  * @property WebSocketState $State
  * @property string $Buffer
@@ -39,7 +39,6 @@ class WebsocketClient extends IPSModule
 {
 
     use DebugHelper,
-        Semaphore,
         InstanceStatus;
 
     /**
@@ -51,7 +50,6 @@ class WebsocketClient extends IPSModule
      */
     public function __get($name)
     {
-        //$this->SendDebug('GET_' . $name, unserialize($this->GetBuffer($name)), 0);
         return unserialize($this->GetBuffer($name));
     }
 
@@ -65,7 +63,6 @@ class WebsocketClient extends IPSModule
     public function __set($name, $value)
     {
         $this->SetBuffer($name, serialize($value));
-        //$this->SendDebug('SET_' . $name, serialize($value), 0);
     }
 
     /**
@@ -79,6 +76,7 @@ class WebsocketClient extends IPSModule
         $this->RequireParent("{3CFF0FD9-E306-41DB-9B5A-9D06D38576C3}");
         $this->RegisterPropertyString("URL", "");
         $this->RegisterPropertyBoolean("Open", false);
+        $this->RegisterPropertyInteger("Frame", WebSocketOPCode::text);
         $this->Buffer = '';
         $this->State = WebSocketState::unknow;
         $this->WaitForPong = false;
@@ -91,8 +89,6 @@ class WebsocketClient extends IPSModule
      */
     public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
     {
-        $this->SendDebug(__FUNCTION__, $Message . ' ' . $SenderID, 0);
-        $this->SendDebug(__FUNCTION__, $Data, 0);
         switch ($Message)
         {
             case IPS_KERNELSTARTED:
@@ -162,14 +158,13 @@ class WebsocketClient extends IPSModule
         if (IPS_GetKernelRunlevel() <> KR_READY)
             return;
 
+        $OldState = $this->State;
         $this->State = WebSocketState::init;
         //Verbindung beenden ?
-        if ($this->State == WebSocketState::Connected)
+        if ($OldState == WebSocketState::Connected)
             $this->SendDisconnect();
 
         parent::ApplyChanges();
-        // Buffer leeren
-        // Config prüfen
 
         $Open = $this->ReadPropertyBoolean('Open');
         $NewState = IS_ACTIVE;
@@ -246,54 +241,6 @@ class WebsocketClient extends IPSModule
 
 ################## PRIVATE     
 
-    /**
-     * Dekodiert die empfangenen Daten und sendet sie an die Childs.
-     * 
-     * @access private
-     * @param string $Frame Ein kompletter DatenFrame.
-     */
-    private function DecodeFrame(WebSocketFrame $Frame)
-    {
-        $this->SendDebug('Receive', $Frame, 1);
-
-        switch ($Frame->OpCode)
-        {
-            case WebSocketOPCode::ping:
-                $this->SendPong($Frame->Payload);
-                return;
-            case WebSocketOPCode::close:
-                $this->SendDisconnect();
-                $this->State = WebSocketState::unknow;
-                return;
-            case WebSocketOPCode::text:
-            case WebSocketOPCode::binary:
-                $this->PayloadTyp = $Frame->OpCode;
-                $Data = $Frame->Payload;
-                break;
-            case WebSocketOPCode::continuation:
-                $Data = $this->PayloadReceiveBuffer . $Frame->Payload;
-        }
-
-        if ($Frame->Fin)
-        {
-            $this->SendDataToChilds($Data); // RAW Childs
-        }
-        else
-        {
-            $this->PayloadReceiveBuffer = $Data;
-        }
-    }
-
-    private function SendPong(string $Payload = null)
-    {
-        $this->Send($Payload, WebSocketOPCode::pong);
-    }
-
-    private function SendDisconnect()
-    {
-        $this->Send("", WebSocketOPCode::close);
-    }
-
     private function InitHandshake()
     {
         if ($this->State <> WebSocketState::init)
@@ -319,8 +266,10 @@ class WebsocketClient extends IPSModule
         $this->State = WebSocketState::HandshakeSend;
         try
         {
-
-            $this->SendDataToParent($SendData);
+            $JSON['DataID'] = '{79827379-F36E-4ADA-8A95-5F8D1DC92FA9}';
+            $JSON['Buffer'] = utf8_encode($SendData);
+            $JsonString = json_encode($JSON);
+            parent::SendDataToParent($JsonString);
             // Antwort lesen
             $Result = $this->WaitForResponse();
             if ($Result === false)
@@ -354,18 +303,86 @@ class WebsocketClient extends IPSModule
         return true;
     }
 
-################## DATAPOINTS DEVICE
+    /**
+     * Dekodiert die empfangenen Daten und sendet sie an die Childs.
+     * 
+     * @access private
+     * @param WebSocketFrame $Frame Ein Objekt welches einen kompletten Frame enthält.
+     */
+    private function DecodeFrame(WebSocketFrame $Frame)
+    {
+        $this->SendDebug('Receive', $Frame, ($Frame->OpCode == WebSocketOPCode::continuation) ? $this->PayloadTyp - 1 : $Frame->OpCode - 1);
+
+        switch ($Frame->OpCode)
+        {
+            case WebSocketOPCode::ping:
+                $this->SendPong($Frame->Payload);
+                return;
+            case WebSocketOPCode::close:
+                $this->SendDisconnect();
+                $this->State = WebSocketState::unknow;
+                return;
+            case WebSocketOPCode::text:
+            case WebSocketOPCode::binary:
+                $this->PayloadTyp = $Frame->OpCode;
+                $Data = $Frame->Payload;
+                break;
+            case WebSocketOPCode::continuation:
+                $Data = $this->PayloadReceiveBuffer . $Frame->Payload;
+                break;
+            case WebSocketOPCode::pong:
+                $this->Handshake = $Frame->Payload;
+                return;
+        }
+
+        if ($Frame->Fin)
+        {
+            $this->SendDataToChilds($Data); // RAW Childs
+        }
+        else
+        {
+            $this->PayloadReceiveBuffer = $Data;
+        }
+    }
+
+    private function SendPong(string $Payload = null)
+    {
+        $this->Send($Payload, WebSocketOPCode::pong);
+    }
+
+    private function SendDisconnect()
+    {
+        $this->Send("", WebSocketOPCode::close);
+    }
+
+    /**
+     * Versendet RawData mit OpCode an den IO.
+     * 
+     * @access protected
+     * @param string $RawData 
+     * @param WebSocketOPCode $OPCode
+     */
+    protected function Send(string $RawData, int $OPCode)
+    {
+
+        $WSFrame = new WebSocketFrame($OPCode, $RawData);
+        $WSFrame->Fin = true;
+        $Frame = $WSFrame->ToFrame(true);
+        $this->SendDebug('Send', $WSFrame, 0);
+        $this->SendDataToParent($Frame);
+    }
+
+################## DATAPOINTS CHILDS
 
     /**
      * Interne Funktion des SDK. Nimmt Daten von Childs entgegen und sendet Diese weiter.
      * 
      * @access public
-     * @param string $JSONString Ein Kodi_RPC_Data-Objekt welches als JSONString kodiert ist.
+     * @param string $JSONString
      * @result bool true wenn Daten gesendet werden konnten, sonst false.
      */
     public function ForwardData($JSONString)
     {
-//        $this->SendDebug('Forward', $JSONString, 0);
         if ($this->State <> WebSocketState::Connected)
         {
             trigger_error("Not connected", E_USER_NOTICE);
@@ -374,17 +391,18 @@ class WebsocketClient extends IPSModule
         $Data = json_decode($JSONString);
         if ($Data->DataID == "{79827379-F36E-4ADA-8A95-5F8D1DC92FA9}") //Raw weitersenden
         {
-            $this->Send(utf8_decode($Data->Buffer), WebSocketOPCode::text);
+            $this->SendText(utf8_decode($Data->Buffer));
         }
-        return true;
-        if ($Data->DataID == "{79827379-F36E-4ADA-8A95-5F8D1DC92FA9}")
-        {
-            $this->Send(utf8_decode($Data->Buffer), $Data->Protocol);
-        }
+        /* Funktioniert nicht :(
+          if ($Data->DataID == "{4A550680-80C5-4465-971E-BBF83205A02B}") // HID für ReportID
+          {
+          $this->Send(utf8_decode($Data->Buffer), $Data->EventID+1);
+          }
+         */
     }
 
     /**
-     * Sendet Kodi_RPC_Data an die Childs.
+     * Sendet die Rohdaten an die Childs.
      * 
      * @access private
      * @param string $RawData
@@ -394,14 +412,15 @@ class WebsocketClient extends IPSModule
         $JSON['DataID'] = '{018EF6B5-AB94-40C6-AA53-46943E824ACF}';
         $JSON['Buffer'] = utf8_encode($RawData);
         $Data = json_encode($JSON);
-        $this->SendDebug('SendDataToChildrenRAW', $Data, 0);
         $this->SendDataToChildren($Data);
-        return;
-        $JSON['DataID'] = '{018EF6B5-AB94-40C6-AA53-46943E824ACF}';
-        $JSON['Protocol'] = $this->PayloadTyp;
-        $Data = json_encode($JSON);
-        $this->SendDebug('SendDataToChildrenWebSocketIO', $Data, 0);
-        $this->SendDataToChildren($Data);
+
+        /*  Funktioniert nicht :(
+          $JSON['DataID'] = '{FD7FF32C-331E-4F6B-8BA8-F73982EF5AA7}';
+          $JSON['Buffer'] = utf8_encode($RawData);
+          $JSON['EventID'] = $this->PayloadTyp-1;
+          $Data = json_encode($JSON);
+          $this->SendDataToChildren($Data);
+         */
     }
 
 ################## DATAPOINTS PARENT    
@@ -420,7 +439,6 @@ class WebsocketClient extends IPSModule
         $head = $this->Buffer;
         $tail = '';
         $Data = $head . utf8_decode($data->Buffer);
-        $this->SendDebug('ReceiveRAWData', $Data, 1);
         switch ($this->State)
         {
             case WebSocketState::HandshakeSend:
@@ -432,6 +450,7 @@ class WebsocketClient extends IPSModule
                 }
                 break;
             case WebSocketState::Connected:
+                $this->SendDebug('ReceivePacket', $Data, 1);
                 $Frame = new WebSocketFrame($Data);
                 $Data = $Frame->Tail;
                 $Frame->Tail = null;
@@ -445,72 +464,81 @@ class WebsocketClient extends IPSModule
     }
 
     /**
-     * Versendet ein String
-     * 
-     * @access protected
-     * @param string $RawData 
-     */
-    protected function Send(string $RawData, int $OPCode)
-    {
-
-        $WSFrame = new WebSocketFrame($OPCode, $RawData);
-        $WSFrame->Fin = true;
-        $this->SendDebug('Send', $WSFrame, 0);
-        $Frame = $WSFrame->ToFrame();
-        $this->SendDataToParent($Frame);
-        return;
-        try
-        {
-            if ($this->ReadPropertyBoolean('Open') === false)
-                throw new Exception('Instance inactiv.', E_USER_NOTICE);
-
-            if (!$this->HasActiveParent())
-                throw new Exception('Intance has no active parent.', E_USER_NOTICE);
-            $this->SendDebug('Send', $KodiData, 0);
-            $this->SendQueuePush($KodiData->Id);
-            $this->SendDataToParent($KodiData);
-            $ReplyKodiData = $this->WaitForResponse($KodiData->Id);
-
-            if ($ReplyKodiData === false)
-            {
-                //$this->SetStatus(IS_EBASE + 3);
-                throw new Exception('No anwser from Kodi', E_USER_NOTICE);
-            }
-
-            $ret = $ReplyKodiData->GetResult();
-            if (is_a($ret, 'KodiRPCException'))
-            {
-                throw $ret;
-            }
-            $this->SendDebug('Receive', $ReplyKodiData, 0);
-            return $ret;
-        }
-        catch (KodiRPCException $ex)
-        {
-            $this->SendDebug("Receive", $ex, 0);
-            trigger_error('Error (' . $ex->getCode() . '): ' . $ex->getMessage(), E_USER_NOTICE);
-        }
-        catch (Exception $ex)
-        {
-            $this->SendDebug("Receive", $ex->getMessage(), 0);
-            trigger_error($ex->getMessage(), $ex->getCode());
-        }
-        return NULL;
-    }
-
-    /**
-     * Sendet ein Kodi_RPC-Objekt an den Parent.
+     * Sendet ein Paket an den Parent.
      * 
      * @access protected
      * @param string $Data
-     * @result bool true
      */
     protected function SendDataToParent($Data)
     {
         $JSON['DataID'] = '{79827379-F36E-4ADA-8A95-5F8D1DC92FA9}';
         $JSON['Buffer'] = utf8_encode($Data);
         $JsonString = json_encode($JSON);
+        $this->SendDebug('Send Packet', $Data, 1);
         parent::SendDataToParent($JsonString);
+    }
+
+################## DATAPOINTS PUBLIC
+
+    /**
+     * Versendet RawData mit OpCode an den IO.
+     * 
+     * @access public
+     * @param string $Text 
+     */
+    public function SendText(string $Text)
+    {
+
+        $WSFrame = new WebSocketFrame($this->ReadPropertyInteger('Frame'), $Text);
+        $WSFrame->Fin = true;
+        $Frame = $WSFrame->ToFrame(true);
+        $this->SendDebug('Send', $WSFrame, 0);
+        $this->SendDataToParent($Frame);
+    }
+
+    /**
+     * Versendet ein String
+     * 
+     * @access public
+     * @param bool $Fin
+     * @param int $OPCode
+     * @param string $Text
+     */
+    public function SendPacket(bool $Fin, int $OPCode, string $Text)
+    {
+        $WSFrame = new WebSocketFrame($OPCode, $Text);
+        $WSFrame->Fin = $Fin;
+        $Frame = $WSFrame->ToFrame(true);
+        $this->SendDebug('Send', $WSFrame, 0);
+        $this->SendDataToParent($Frame);
+    }
+
+    /**
+     * Versendet ein String
+     * 
+     * @access public
+     * @param string $Text
+     */
+    public function SendPing(string $Text)
+    {
+        $WSFrame = new WebSocketFrame(WebSocketOPCode::ping, $Text);
+        $WSFrame->Fin = $Fin;
+        $Frame = $WSFrame->ToFrame(true);
+        $this->SendDebug('Send', $WSFrame, 0);
+        $this->SendDataToParent($Frame);
+        $Result = $this->WaitForPong();
+        $this->Handshake = "";
+        if ($Result === false)
+        {
+            trigger_error('Timeout', E_USER_NOTICE);
+            return false;
+        }
+
+        if ($Result !== $Text)
+        {
+            trigger_error('Wrong pong received', E_USER_NOTICE);
+            return false;
+        }
         return true;
     }
 
@@ -543,7 +571,7 @@ class WebsocketClient extends IPSModule
     {
         for ($i = 0; $i < 1000; $i++)
         {
-            if ($this->WaitForPong() === true)
+            if ($this->WaitForPong === true)
             {
                 $Handshake = $this->Handshake;
                 $this->Handshake = "";

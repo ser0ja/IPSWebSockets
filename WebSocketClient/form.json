@@ -10,6 +10,21 @@
                     "name": "URL",
                     "type": "ValidationTextBox",
                     "caption": "URL"
+                },
+                {
+                    "name": "Frame",
+                    "type": "Select",
+                    "caption": "Default for SendText",
+                    "options": [
+                        {
+                            "label": "text",
+                            "value": 1
+                        },
+                        {
+                            "label": "binary",
+                            "value": 2
+                        }
+                    ]
                 }
             ],
     "status":
@@ -17,12 +32,12 @@
                 {
                     "code": 102,
                     "icon": "active",
-                    "caption": "Connected."
+                    "caption": "Connected"
                 },
                 {
                     "code": 104,
                     "icon": "inactive",
-                    "caption": "Interface closed."
+                    "caption": "Interface closed"
                 },
                 {
                     "code": 201,

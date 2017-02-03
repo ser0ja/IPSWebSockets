@@ -3,11 +3,11 @@
     "author": "Michael Tr\u00f6ger",
     "name": "Websocket Library",
     "url": "https://github.com/Nall-chan/IPSWebsocket/",
-    "version": "0.1",
-    "build": 100,
-    "date": 1485256481,
+    "version": "0.2",
+    "build": 102,
+    "date": 1486129417,
     "title": "Websockets für IPS.",
     "description": "",
-    "tags": ["Websocket", "HTTP", "Client", "Server"],
+    "tags": ["Websocket", "HTTP", "Client", "Server","ClientSplitter"],
     "req_ips_version": "4.1"
 }

@@ -1,13 +1,13 @@
 <?
 
-/* * @addtogroup kodi
+/* * @addtogroup websocket
  * @{
  *
- * @package       Kodi
+ * @package       Websocket
  * @author        Michael Tröger <micha@nall-chan.net>
- * @copyright     2016 Michael Tröger
+ * @copyright     2017 Michael Tröger
  * @license       https://creativecommons.org/licenses/by-nc-sa/4.0/ CC BY-NC-SA 4.0
- * @version       1.0
+ * @version       0.2
  * @example <b>Ohne</b>
  */
 
@@ -157,6 +157,9 @@ if (@constant('IPS_BASE') == null) //Nur wenn Konstanten noch nicht bekannt sind
     define('vtObject', 9);
 }
 
+/**
+ * Der Status der Verbindung.
+ */
 class WebSocketState
 {
 
@@ -212,8 +215,13 @@ trait DebugHelper
             $this->SendDebug($Message . ' FIN', ($Data->Fin ? "true" : "false"), 0);
             $this->SendDebug($Message . ' OpCode', WebSocketOPCode::ToString($Data->OpCode), 0);
             $this->SendDebug($Message . ' Mask', ($Data->Mask ? "true" : "false"), 0);
-//            $this->SendDebug($Message . ' MaskKey', $Data->MaskKey, 0);                        
-            $this->SendDebug($Message . ' Payload', $Data->Payload, 0);
+            if ($Data->MaskKey != "")
+                $this->SendDebug($Message . ' MaskKey', $Data->MaskKey, 1);
+            if ($Data->Payload != "")
+                $this->SendDebug($Message . ' Payload', $Data->Payload, ($Data->OpCode == WebSocketOPCode::text ? (int) $Data->Mask : ($Format)));
+
+            if ($Data->PayloadRAW != "")
+                $this->SendDebug($Message . ' PayloadRAW', $Data->PayloadRAW, ($Data->OpCode == WebSocketOPCode::text ? 0 : 1));
         }/* elseif (is_a($Data, 'TXB_CMD_Data'))
           {
           $this->SendDebug($Message . ' ATCmd', $Data->ATCommand, 0);
@@ -240,44 +248,6 @@ trait DebugHelper
         {
             parent::SendDebug($Message, $Data, $Format);
         }
-    }
-
-}
-
-/**
- * Biete Funktionen um Thread-Safe auf Objekte zuzugrifen.
- */
-trait Semaphore
-{
-
-    /**
-     * Versucht eine Semaphore zu setzen und wiederholt dies bei Misserfolg bis zu 100 mal.
-     * @param string $ident Ein String der den Lock bezeichnet.
-     * @return boolean TRUE bei Erfolg, FALSE bei Misserfolg.
-     */
-    private function lock($ident)
-    {
-        for ($i = 0; $i < 100; $i++)
-        {
-            if (IPS_SemaphoreEnter("WSC_" . (string) $this->InstanceID . (string) $ident, 1))
-            {
-                return true;
-            }
-            else
-            {
-                IPS_Sleep(mt_rand(1, 5));
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Löscht eine Semaphore.
-     * @param string $ident Ein String der den Lock bezeichnet.
-     */
-    private function unlock($ident)
-    {
-        IPS_SemaphoreLeave("WSC_" . (string) $this->InstanceID . (string) $ident);
     }
 
 }
@@ -343,6 +313,9 @@ trait InstanceStatus
 
 }
 
+/**
+ * Alle OpCodes für einen Websocket-Frame
+ */
 class WebSocketOPCode
 {
 
@@ -382,6 +355,9 @@ class WebSocketOPCode
 
 }
 
+/**
+ * Wert bei Maskierung
+ */
 class WebSocketMask
 {
 
@@ -389,16 +365,26 @@ class WebSocketMask
 
 }
 
+/**
+ * Ein Frame für eine Websocket Verbindung.
+ */
 class WebSocketFrame extends stdClass
 {
 
     public $Fin = false;
     public $OpCode = WebSocketOPCode::continuation;
     public $Mask = false;
-    public $MaskKey = null;
-    public $Payload = null;
+    public $MaskKey = "";
+    public $Payload = "";
+    public $PayloadRAW = "";
     public $Tail = null;
 
+    /**
+     * Erzeugt einen Frame anhand der übergebenen Daten.
+     * 
+     * @param object|string|null|WebSocketOPCode Aus den übergeben Daten wird das Objekt erzeugt
+     * @param string $Payload Das Payload wenn Frame den WebSocketOPCode darstellt.
+     */
     public function __construct($Frame = null, $Payload = null)
     {
         if (is_null($Frame))
@@ -459,12 +445,13 @@ class WebSocketFrame extends stdClass
     }
 
     /**
-     * Liefert den Byte-String für den Versand an den IO
+     * Liefert den Byte-String für den Versand an den IO-Parent
      * 
      */
-    public function ToFrame()
+    public function ToFrame($Masked = false)
     {
-        $Frame = chr((($this->Fin) ? 0x80 : 0) | $this->OpCode);
+
+        $Frame = chr(($this->Fin ? 0x80 : 0x00) | $this->OpCode);
         $len = strlen($this->Payload);
         $len2 = "";
         if ($len > 0xFFFF)
@@ -477,8 +464,20 @@ class WebSocketFrame extends stdClass
             $len2 = pack("n", $len);
             $len = 126;
         }
+        $this->Mask = $Masked;
+        if ($this->Mask and ( $len > 0))
+        {
+            $this->PayloadRAW = $this->Payload;
+            $len = $len | WebSocketMask::mask;
+            $this->MaskKey = openssl_random_pseudo_bytes(4);
+            for ($i = 0; $i < strlen($this->Payload); $i++)
+            {
+                $this->Payload[$i] = $this->Payload[$i] ^ $this->MaskKey[$i % 4];
+            }
+        }
         $Frame .= chr($len);
         $Frame .= $len2;
+        $Frame .= $this->MaskKey;
         $Frame .= $this->Payload;
         return $Frame;
     }
@@ -486,4 +485,3 @@ class WebSocketFrame extends stdClass
 }
 
 /** @} */
-?>
