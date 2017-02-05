@@ -1,0 +1,11 @@
+{
+    "translations": {
+        "de": {
+            "Ping interval:": "Ping Intervall:",
+            "Optional HTTP Basic-Authentication:": "Optionale HTTP Basis-Authentifizierung:",
+            "Active": "Aktiv",
+            "Username": "Benutzername",
+            "Password": "Passwort"
+        }
+    }
+}

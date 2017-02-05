@@ -1,0 +1,32 @@
+{
+    "elements":
+            [
+                {
+                    "name": "URI",
+                    "type": "ValidationTextBox",
+                    "caption": "URI"
+                }, {
+                    "name": "Interval",
+                    "type": "NumberSpinner",
+                    "caption": "Ping interval"
+                }, {
+                    "type": "Label",
+                    "label": "Optional HTTP Basic-Authentication:"
+                },
+                {
+                    "name": "BasisAuth",
+                    "type": "CheckBox",
+                    "caption": "Active"
+                },
+                {
+                    "name": "Username",
+                    "type": "ValidationTextBox",
+                    "caption": "Username"
+                },
+                {
+                    "name": "Password",
+                    "type": "PasswordTextBox",
+                    "caption": "Password"
+                }
+            ]
+}

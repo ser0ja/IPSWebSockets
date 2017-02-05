@@ -12,6 +12,11 @@
                     "caption": "URL"
                 },
                 {
+                    "name": "TLS",
+                    "type": "CheckBox",
+                    "caption": "use TLS"
+                },
+                {
                     "name": "Frame",
                     "type": "Select",
                     "caption": "Default for SendText",
@@ -25,6 +30,25 @@
                             "value": 2
                         }
                     ]
+                },
+                {
+                    "type": "Label",
+                    "label": "Optional HTTP Basic-Authentication:"
+                },
+                {
+                    "name": "BasisAuth",
+                    "type": "CheckBox",
+                    "caption": "Active"
+                },
+                {
+                    "name": "Username",
+                    "type": "ValidationTextBox",
+                    "caption": "Username"
+                },
+                {
+                    "name": "Password",
+                    "type": "PasswordTextBox",
+                    "caption": "Password"
                 }
             ],
     "status":

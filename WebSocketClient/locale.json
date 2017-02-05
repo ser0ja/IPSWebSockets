@@ -1,11 +1,15 @@
 {
     "translations": {
         "de": {
-            "Open": "Aktiv",
+            "Open": "Verbinden",
             "URL": "URL",
             "Default for SendText": "Paket für SendText",
             "text": "Text",
             "binary": "Binär",
+            "Optional HTTP Basic-Authentication:": "Optionale HTTP Basis-Authentifizierung:",
+            "Active": "Aktiv",
+            "Username": "Benutzername",
+            "Password": "Passwort",
             "Connected": "Verbunden",
             "Interface closed": "Verbindung geschlossen",
             "Connection lost": "Verbindung verloren",

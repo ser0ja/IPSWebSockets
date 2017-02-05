@@ -157,6 +157,14 @@ if (@constant('IPS_BASE') == null) //Nur wenn Konstanten noch nicht bekannt sind
     define('vtObject', 9);
 }
 
+
+require_once __DIR__ . '/loadTLS.php';
+$autoloader = new AutoloaderTLS('PTLS');
+
+$autoloader->register();
+
+
+
 /**
  * Der Status der Verbindung.
  */
@@ -168,6 +176,8 @@ class WebSocketState
     const HandshakeReceived = 2;
     const Connected = 3;
     const init = 4;
+    const TLSisSend = 5;
+    const TLSisReceived = 6;
     const Fin = 0x80;
 
     /**
@@ -222,19 +232,14 @@ trait DebugHelper
 
             if ($Data->PayloadRAW != "")
                 $this->SendDebug($Message . ' PayloadRAW', $Data->PayloadRAW, ($Data->OpCode == WebSocketOPCode::text ? 0 : 1));
-        }/* elseif (is_a($Data, 'TXB_CMD_Data'))
-          {
-          $this->SendDebug($Message . ' ATCmd', $Data->ATCommand, 0);
-          $this->SendDebug($Message . ' Status', TXB_AT_Command_Status::ToString($Data->Status), 0);
-          $this->SendDebug($Message . ' Data', $Data->Data, 1);
-          } */
+        }
         else
         if (is_object($Data))
         {
             foreach ($Data as $Key => $DebugData)
             {
 
-                $this->SendDebug($Message . ":" . $Key, $DebugData, 1);
+                $this->SendDebug($Message . ":" . $Key, $DebugData, 0);
             }
         }
         else if (is_array($Data))
@@ -246,7 +251,7 @@ trait DebugHelper
         }
         else
         {
-            parent::SendDebug($Message, $Data, $Format);
+            parent::SendDebug($Message, (string) $Data, $Format);
         }
     }
 
@@ -435,10 +440,22 @@ class WebSocketFrame extends stdClass
             $len = unpack("J", substr($Frame, 2, 8))[1];
             $start = 10;
         }
+        if ($this->Mask)
+        {
+            $this->MaskKey = substr($Frame, $start, 4);
+            $start = $start + 4;
+        }
         //Prüfen ob genug daten da sind !
         if (strlen($Frame) >= $start + $len)
         {
             $this->Payload = substr($Frame, $start, $len);
+            if ($this->Mask and ( $len > 0))
+            {
+                for ($i = 0; $i < strlen($this->Payload); $i++)
+                {
+                    $this->Payload[$i] = $this->Payload[$i] ^ $this->MaskKey[$i % 4];
+                }
+            }
             $Frame = substr($Frame, $start + $len);
         }
         $this->Tail = $Frame;
