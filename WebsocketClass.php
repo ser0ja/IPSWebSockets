@@ -163,8 +163,6 @@ $autoloader = new AutoloaderTLS('PTLS');
 
 $autoloader->register();
 
-
-
 /**
  * Der Status der Verbindung.
  */
@@ -198,6 +196,12 @@ class WebSocketState
                 return 'HandshakeReceived';
             case self:: Connected:
                 return 'Connected';
+            case self:: init:
+                return 'init';
+            case self:: TLSisSend:
+                return 'TLSisSend';
+            case self:: TLSisReceived:
+                return 'TLSisReceived';
         }
     }
 

@@ -12,11 +12,6 @@
                     "caption": "URL"
                 },
                 {
-                    "name": "TLS",
-                    "type": "CheckBox",
-                    "caption": "use TLS"
-                },
-                {
                     "name": "Frame",
                     "type": "Select",
                     "caption": "Default for SendText",
